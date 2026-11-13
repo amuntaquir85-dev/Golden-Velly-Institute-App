@@ -1,1 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Text → Action Video</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: linear-gradient(135deg, #0a0a1a, #1a0a2a);
+    color: white;
+    font-family: system-ui, sans-serif;
+    padding: 30px 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 800px; margin: 0 auto; }
+  h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, #ff2d95, #feca57);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .sub { color: #888; margin-bottom: 20px; font-size: 14px; }
+  textarea {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    background: #1a1a2a;
+    color: white;
+    border: 1px solid #333;
+    border-radius: 10px;
+    resize: vertical;
+    font-family: inherit;
+    outline: none;
+  }
+  textarea:focus { border-color: #ff2d95; }
+  button {
+    padding: 14px 28px;
+    margin-top: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #ff2d95, #feca57);
+    border: none;
+    border-radius: 10px;
+    color: #111;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  button:hover:not(:disabled) { transform: translateY(-2px); }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  #status {
+    margin-top: 16px;
+    padding: 12px;
+    background: #1a1a2a;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  #status.hidden { display: none; }
+  canvas { 
+    width: 100%;
+    border-radius: 10px;
+    margin-top: 20px;
+    border: 1px solid #333;
+  }
+  video { 
+    width: 100%;
+    border-radius: 10px;
+    margin-top: 20px;
+    background: #000;
+    display: none;
+  }
+  video.show { display: block; }
+  #download {
+    display: none;
+    margin-top: 14px;
+    padding: 12px 24px;
+    background: #48dbfb;
+    color: #111;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  #download.show { display: inline-block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎬 Text → Action Video</h1>
+  <p class="sub">Type karo, browser hi video bana dega. No server, no API, no install.</p>
+  
+  <textarea id="input" rows="2" placeholder="Tiger running in jungle"></textarea>
+  <button id="btn">🎥 Generate Video</button>
+  
+  <div id="status" class="hidden"></div>
+  
+  <canvas id="canvas" width="1280" height="720"></canvas>
+  
+  <video id="video" controls playsinline></video>
+  <br>
+  <a id="download">⬇️ Download Video</a>
+</div>
 
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const input = document.getElementById('input');
+const btn = document.getElementById('btn');
+const statusEl = document.getElementById('status');
+const videoEl = document.getElementById('video');
+const downloadEl = document.getElementById('download');
+
+let particles = [];
+let animId = null;
+let frame = 0;
+
+// particles setup
+function createParticles() {
+  particles = [];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4,
+      size: Math.random() * 3 + 1,
+      hue: Math.random() * 80 + 300,
+      life: Math.random() * 100
+    });
+  }
+}
+
+// draw scene
+function drawScene() {
+  // background
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0a0a1a');
+  bg.addColorStop(0.5, '#1a0a2a');
+  bg.addColorStop(1, '#0a1a2a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // particles
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0 || p.x > W) p.vx *= -1;
+    if (p.y < 0 || p.y > H) p.vy *= -1;
+    p.life++;
+    const alpha = (Math.sin(p.life * 0.05) + 1) / 2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue}, 90%, 65%, ${alpha})`;
+    ctx.fill();
+  });
+
+  // moving glow
+  const t = frame * 0.015;
+  const cx = W/2 + Math.cos(t) * 350;
+  const cy = H/2 + Math.sin(t) * 200;
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 450);
+  glow.addColorStop(0, 'rgba(255, 45, 149, 0.4)');
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  // text
+  const text = (input.value || 'ACTION VIDEO').toUpperCase();
+  const scale = 1 + Math.sin(frame * 0.1) * 0.04;
+  const shakeX = Math.sin(frame * 0.4) * 4;
+  const shakeY = Math.cos(frame * 0.35) * 4;
+
+  ctx.save();
+  ctx.translate(W/2 + shakeX, H/2 + shakeY);
+  ctx.scale(scale, scale);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // fit text size
+  let fontSize = 100;
+  ctx.font = `900 ${fontSize}px Impact, sans-serif`;
+  while (ctx.measureText(text).width > W * 0.9 && fontSize > 30) {
+    fontSize -= 4;
+    ctx.font = `900 ${fontSize}px Impact, sans-serif`;
+  }
+
+  // glow layer
+  ctx.shadowColor = '#ff2d95';
+  ctx.shadowBlur = 50;
+  ctx.fillStyle = 'white';
+  ctx.fillText(text, 0, 0);
+
+  // outline
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ff2d95';
+  ctx.lineWidth = 3;
+  ctx.strokeText(text, 0, 0);
+
+  ctx.restore();
+
+  // bottom bar
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(0, H - 70, W, 55);
+  ctx.font = '24px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#feca57';
+  ctx.fillText(input.value || 'ACTION VIDEO', W/2, H - 35);
+
+  frame++;
+}
+
+function animate() {
+  drawScene();
+  animId = requestAnimationFrame(animate);
+}
+
+async function generateVideo() {
+  const text = input.value.trim();
+  if (text.length < 3) {
+    statusEl.classList.remove('hidden');
+    statusEl.textContent = '❌ Kam se kam 3 characters likho';
+    return;
+  }
+
+  btn.disabled = true;
+  videoEl.classList.remove('show');
+  downloadEl.classList.remove('show');
+  statusEl.classList.remove('hidden');
+  statusEl.textContent = '🎬 Recording... 6 second wait karo';
+
+  // start animation
+  createParticles();
+  frame = 0;
+  if (animId) cancelAnimationFrame(animId);
+  animate();
+
+  // record canvas
+  const stream = canvas.captureStream(30);
+
+  // find supported codec
+  const types = [
+    'video/mp4;codecs=h264',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm'
+  ];
+  let mime = '';
+  for (const t of types) {
+    if (MediaRecorder.isTypeSupported(t)) { mime = t; break; }
+  }
+
+  if (!mime) {
+    statusEl.textContent = '❌ Browser support nahi karta. Chrome ya Edge use karo.';
+    btn.disabled = false;
+    return;
+  }
+
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6000000 });
+  const chunks = [];
+
+  rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+  rec.onstop = () => {
+    const blob = new Blob(chunks, { type: mime });
+    const url = URL.createObjectURL(blob);
+    videoEl.src = url;
+    videoEl.classList.add('show');
+    downloadEl.href = url;
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    downloadEl.download = `action-video.${ext}`;
+    downloadEl.classList.add('show');
+    statusEl.textContent = '✅ Video ready! Play ya download karo.';
+    btn.disabled = false;
+    if (animId) cancelAnimationFrame(animId);
+  };
+
+  rec.start();
+
+  // record 6 seconds
+  setTimeout(() => {
+    rec.stop();
+    stream.getTracks().forEach(t => t.stop());
+  }, 6000);
+}
+
+btn.onclick = generateVideo;
+
+// initial preview
+createParticles();
+animate();
+</script>
+</body>
+</html>
